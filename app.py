@@ -66,7 +66,7 @@ if foreground_file and background_file:
             output_img = Image.alpha_composite(background_resized, processed_foreground)
 
             # Display the result
-            st.image(output_img, caption="Final Output Image", use_column_width=True)
+            st.image(output_img, caption="Final Output Image", use_container_width=True)
             st.success("Image processing completed!")
 
             # Download button for the output image
