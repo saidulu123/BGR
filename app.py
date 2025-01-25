@@ -103,3 +103,4 @@ if foreground_file and background_file:
             st.error(f"An unexpected error occurred: {e}")
 else:
     st.info("Please upload both foreground and background images to proceed.")
+#pil  issue
