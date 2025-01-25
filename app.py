@@ -44,6 +44,35 @@ background_file = st.file_uploader("Upload Background Image (JPEG/PNG)", type=["
 # Helper function to process images
 def process_images(foreground, background):
     try:
+        # Open and convert images to RGBA
+        fg_img = Image.open(foreground).convert("RGBA")
+        bg_img = Image.open(background).convert("RGBA")
+
+        # Resize images to manageable dimensions if too large
+        max_size = 1024
+        fg_img.thumbnail((max_size, max_size))
+
+        # Process the foreground image to remove the background
+        fg_byte_arr = io.BytesIO()
+        fg_img.save(fg_byte_arr, format="PNG")
+        processed_data = remove(fg_byte_arr.getvalue(), alpha_matting=True)
+        processed_fg_img = Image.open(io.BytesIO(processed_data)).convert("RGBA")
+
+        # Resize the background to match the dimensions of the processed foreground
+        bg_img = bg_img.resize(processed_fg_img.size)
+
+        # Composite images
+        composite_img = Image.alpha_composite(bg_img, processed_fg_img)
+
+        return composite_img
+    except UnidentifiedImageError:
+        st.error("Uploaded file is not a valid image. Please try again.")
+        return None
+    except Exception as e:
+        st.error(f"An error occurred: {e}")
+        return None
+
+    try:
         # Open and resize images
         fg_img = Image.open(foreground).convert("RGBA")
         bg_img = Image.open(background).convert("RGBA")
