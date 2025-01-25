@@ -34,7 +34,7 @@ background_file = st.file_uploader("Upload Background Image (JPEG/PNG)", type=["
 # Function to compress an image
 def compress_image(image: Image.Image, max_dimension: int) -> Image.Image:
     """Resize the image while maintaining aspect ratio."""
-    image.thumbnail((max_dimension, max_dimension), Image.ANTIALIAS)
+    image.thumbnail((max_dimension, max_dimension), Image.Resampling.LANCZOS)
     return image
 
 # Process the images when both are uploaded
