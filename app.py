@@ -1,83 +1,90 @@
 import streamlit as st
 from rembg import remove
-from PIL import Image
+from PIL import Image, UnidentifiedImageError
 import tempfile
 import os
+import io
 
-
-# Get the directory of the current script
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
- 
-# Set Streamlit configuration
+# Set up Streamlit app configuration
 st.set_page_config(page_title="Image Processor", layout="centered")
- 
-# Load custom CSS
-css_path = os.path.join(BASE_DIR, "style.css")
 
-# Load custom CSS
-with open(css_path, "r") as f:
-    st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
-
-# Title and description
+# Load CSS
 st.markdown("""
-<div class="container">
-    <h1>Image Background Replacement Tool</h1>
-    <p>Upload a foreground and background image to create a composite image.</p>
-</div>
+<style>
+body {
+    font-family: Arial, sans-serif;
+    background-color: #f8f9fa;
+    margin: 0;
+    padding: 0;
+}
+.container {
+    background: #ffffff;
+    padding: 20px 40px;
+    border-radius: 8px;
+    box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.1);
+    width: 100%;
+    max-width: 600px;
+    margin: auto;
+}
+h1 {
+    color: #333;
+    font-size: 24px;
+    margin-bottom: 16px;
+}
+</style>
 """, unsafe_allow_html=True)
+
+# App Title
+st.markdown("<div class='container'><h1>Image Background Replacement Tool</h1></div>", unsafe_allow_html=True)
 
 # File upload widgets
 foreground_file = st.file_uploader("Upload Foreground Image (JPEG/PNG)", type=["jpg", "jpeg", "png"])
 background_file = st.file_uploader("Upload Background Image (JPEG/PNG)", type=["jpg", "jpeg", "png"])
 
-# Process the images when both are uploaded
+# Helper function to process images
+def process_images(foreground, background):
+    try:
+        # Open and resize images
+        fg_img = Image.open(foreground).convert("RGBA")
+        bg_img = Image.open(background).convert("RGBA")
+
+        # Resize to manageable dimensions if too large
+        max_size = 1024
+        fg_img.thumbnail((max_size, max_size))
+        bg_img.thumbnail(fg_img.size)
+
+        # Remove background
+        fg_byte_arr = io.BytesIO()
+        fg_img.save(fg_byte_arr, format="PNG")
+        processed_data = remove(fg_byte_arr.getvalue(), alpha_matting=True)
+        processed_fg_img = Image.open(io.BytesIO(processed_data)).convert("RGBA")
+
+        # Composite images
+        composite_img = Image.alpha_composite(bg_img, processed_fg_img)
+
+        return composite_img
+    except UnidentifiedImageError:
+        st.error("Uploaded file is not a valid image. Please try again.")
+        return None
+    except Exception as e:
+        st.error(f"An error occurred: {e}")
+        return None
+
+# Process images and display results
 if foreground_file and background_file:
     with st.spinner("Processing images..."):
-        # Load images
-        foreground_img = Image.open(foreground_file)
-        background_img = Image.open(background_file)
+        output_image = process_images(foreground_file, background_file)
+        if output_image:
+            st.image(output_image, caption="Processed Image", use_container_width=True)
 
-        # Create a temporary directory for processing
-        with tempfile.TemporaryDirectory() as temp_dir:
-            # Save the foreground image temporarily
-            foreground_path = os.path.join(temp_dir, 'foreground.png')
-            foreground_img.save(foreground_path)
-
-            # Process the foreground image to remove the background
-            processed_foreground_path = os.path.join(temp_dir, 'processed_foreground.png')
-            with open(processed_foreground_path, 'wb') as f:
-                input_data = open(foreground_path, 'rb').read()
-                output_data = remove(input_data, alpha_matting=True)
-                f.write(output_data)
-
-            # Load the processed foreground image
-            processed_foreground = Image.open(processed_foreground_path)
-
-            # Resize the background image to match the foreground dimensions
-            background_resized = background_img.resize(processed_foreground.size)
-
-            # Ensure both images are in RGBA mode
-            if processed_foreground.mode != "RGBA":
-                processed_foreground = processed_foreground.convert("RGBA")
-            if background_resized.mode != "RGBA":
-                background_resized = background_resized.convert("RGBA")
-
-            # Composite the foreground and background images
-            output_img = Image.alpha_composite(background_resized, processed_foreground)
-
-            # Display the result
-            st.image(output_img, caption="Final Output Image", use_container_width=True)
-            st.success("Image processing completed!")
-
-            # Download button for the output image
-            output_img_path = os.path.join(temp_dir, "output.png")
-            output_img.save(output_img_path)
-            with open(output_img_path, "rb") as img_file:
-                st.download_button(
-                    label="Download Output Image",
-                    data=img_file,
-                    file_name="output.png",
-                    mime="image/png"
-                )
+            # Provide a download button
+            output_buffer = io.BytesIO()
+            output_image.save(output_buffer, format="PNG")
+            st.download_button(
+                label="Download Processed Image",
+                data=output_buffer.getvalue(),
+                file_name="processed_image.png",
+                mime="image/png",
+            )
 else:
-    st.info("Please upload both foreground and background images to proceed.")
+    st.info("Upload both foreground and background images to continue.")
