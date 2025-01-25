@@ -100,20 +100,57 @@ def process_images(foreground, background):
         return None
 
 # Process images and display results
+
+
+# Process the images when both are uploaded
 if foreground_file and background_file:
     with st.spinner("Processing images..."):
-        output_image = process_images(foreground_file, background_file)
-        if output_image:
-            st.image(output_image, caption="Processed Image", use_container_width=True)
+        try:
+            # Load images and log dimensions
+            foreground_img = Image.open(foreground_file).convert("RGBA")
+            background_img = Image.open(background_file).convert("RGBA")
 
-            # Provide a download button
-            output_buffer = io.BytesIO()
-            output_image.save(output_buffer, format="PNG")
+            st.write(f"Original Foreground Dimensions: {foreground_img.size}")
+            st.write(f"Original Background Dimensions: {background_img.size}")
+
+            # Resize images to manageable dimensions
+            max_size = 1024
+            foreground_img.thumbnail((max_size, max_size))
+            st.write(f"Resized Foreground Dimensions: {foreground_img.size}")
+
+            # Process the foreground image to remove the background
+            temp_foreground = io.BytesIO()
+            foreground_img.save(temp_foreground, format="PNG")
+            processed_data = remove(temp_foreground.getvalue(), alpha_matting=True)
+            processed_foreground = Image.open(io.BytesIO(processed_data)).convert("RGBA")
+            st.write(f"Processed Foreground Dimensions: {processed_foreground.size}")
+
+            # Resize the background to match the dimensions of the processed foreground
+            background_resized = background_img.resize(processed_foreground.size)
+            st.write(f"Resized Background Dimensions: {background_resized.size}")
+
+            # Composite the foreground and background images
+            output_img = Image.alpha_composite(background_resized, processed_foreground)
+
+            # Display the result
+            st.image(output_img, caption="Final Output Image", use_container_width=True)
+            st.success("Image processing completed!")
+
+            # Download button for the output image
+            output_img_path = io.BytesIO()
+            output_img.save(output_img_path, format="PNG")
+            output_img_path.seek(0)
             st.download_button(
-                label="Download Processed Image",
-                data=output_buffer.getvalue(),
-                file_name="processed_image.png",
-                mime="image/png",
+                label="Download Output Image",
+                data=output_img_path,
+                file_name="output.png",
+                mime="image/png"
             )
+
+        except UnidentifiedImageError:
+            st.error("One of the uploaded files is not a valid image. Please try again.")
+        except Exception as e:
+            st.error(f"An unexpected error occurred: {e}")
 else:
-    st.info("Upload both foreground and background images to continue.")
+    st.info("Please upload both foreground and background images to proceed.")
+
